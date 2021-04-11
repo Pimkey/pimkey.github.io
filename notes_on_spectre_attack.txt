@@ -1,0 +1,65 @@
+Ways of prevention
+Site isolation
+https://www.usenix.org/conference/usenixsecurity19/presentation/reis
+Site Isolation (SI) more closely aligns the web security model (the same-origin policy) with the underlying platform’s security model (separate address spaces and privilege reduction). 
+It ensures that pages from different websites are always put into different processes, each running in a sandbox that limits what the process is allowed to do.  It also makes it possible to block the process from receiving certain types of sensitive data from other sites.  As a result, a malicious website will find it much more difficult to steal data from other sites, even if it can break some of the rules in its own process.
+Except from Spectre it protects from Renderer exploits.
+When Site Isolation is enabled, each renderer process contains documents from at most one site. This means all navigations to cross-site documents cause a tab to switch processes. It also means all cross-site iframes are put into a different process than their parent frame, using "out-of-process iframes."
+For the most part, Site Isolation is a behind-the-scenes browser feature that is not directly exposed to web developers. There is no new web-exposed API to learn, for example. In general, web pages shouldn’t be able to tell the difference when running with or without Site Isolation.
+
+Limitations:
+Unload handlers might time out more often
+Full-page layout is no longer synchronous
+CORB - Cross origin read blocking
+Site Isolation depends on cross-origin read blocking to prevent a malicious website from pulling in sensitive cross-origin data. It consists in filtering out cross origin data outside of renderer process.
+Even when each renderer process is limited to documents from a single site, there is still a risk that an attacker's page could access and leak information from cross-site URLs by requesting them as subresources, such as images or scripts. Web browsers generally allow pages to embed images and scripts from any site. However, a page could try to request an HTML or JSON URL with sensitive data as if it were an image or script. This would normally fail to render and not expose the data to the page, but that data would still end up inside the renderer process where a Spectre attack might access it. To mitigate this, Site Isolation includes a feature called Cross-Origin Read Blocking (CORB), which is now part of the Fetch spec. CORB tries to transparently block cross-site HTML, XML, and JSON responses from the renderer process, with almost no impact to compatibility. To get the most protection from Site Isolation and CORB, web developers should check that their resources are served with the right MIME type and with the nosniff response header. Cross-origin read blocking, better known as CORB, is an algorithm which identifies dubious cross-origin resource fetches (e.g., fetches that would fail anyway like attempts to render JSON inside an img element) and blocks them before they reach a web page.
+As of M65, CORB protects:
+HTML, JSON, and XML responses. Protection requires the resource to be served with the correct Content-Type header. We recommend using X-Content-Type-Options: nosniff.
+text/plain responses which sniff as HTML, XML, or JSON.
+Today, CORB doesn’t protect:
+Responses without a Content-Type header.
+Particular content types:
+image/*
+video/*
+audio/*
+text/css
+font/*
+application/javascript
+PDFs, ZIPs, and other unrecognized MIME types
+To make sure that sensitive resources on your website (e.g. pages or JSON files with user-specific information, or pages with CSRF tokens) will not leak to other web origins, make sure these resources are served with a correct "Content-Type" response header from the list below, as well as a "X-Content-Type-Options: nosniff" response header.  These headers ensure Chrome can identify the resources as needing protection, without depending on the contents of the resources.
+COOP - Cross Origin Opener Policy
+
+Resource isolation policy
+https://web.dev/fetch-metadata/
+Resource Isolation Policy prevents external websites from requesting your resources. Blocking such traffic mitigates common web vulnerabilities such as CSRF, XSSI, or XS-Leaks. The policy can be enabled for applications whose endpoints are not intended to be loaded in a cross-site context and will allow resource requests coming from your application as well as direct navigations. It is common for resources exposed by a given web application to only be loaded by the application itself, and not by other websites. In such cases, deploying a Resource Isolation Policy based on Fetch Metadata request headers protects the application from cross-site attacks.
+ By providing information about the context of an HTTP request in a set of Sec-Fetch-* headers, they allow the responding server to apply security policies before processing the request. This lets developers decide whether to accept or reject a request based on the way it was made and the context in which it will be used, making it possible to respond to only legitimate requests made by their own application.
+NOT SUPPORTED in Firefox, IE, Safari
+Endpoints meant to be accessed cross-origin: If your application is serving endpoints that are CORS enabled, you need to explicitly opt them out from resource isolation to ensure that cross-site requests to these endpoints are still possible.
+Public resources (e.g. images, styles, etc.): Any public and unauthenticated resources that should be loadable cross-origin from other sites can be exempted as well.
+
+
+More to check:: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite
+https://owasp.org/www-community/HttpOnly
+https://github.com/annevk/orb
+
+To Do:
+
+Set  X-Content-Type-Options = nosniff + mime type to satisfy CORB
+
+Set Content-Security-Policy = sandbox to mitigate the risk that navigation to a subresource causes script execution or opens an origin up to attack in some other way, servers can assert the following set of headers which collectively make it difficult to meaningfully abuse a subresource via navigation
+
+Set Cross-Origin-Opener-Policy  = same-origin to prevent  cross-origin documents from retaining a handle to the resource’s window if it’s opened in a popup (read more about various cases)
+
+Set X-Frame-optios = deny to prevent resources from being framed.
+
+Use Fetch Metadata Headers to preserve resource isolation
+
+Set origin header to use in CORS
+
+Set cross-origin resource policy = same-origin to align with CORP
+
+
+To mitigate the risk that navigation to a subresource causes script execution or opens an origin up to attack in some other way, servers can assert the following set of headers which collectively make it difficult to meaningfully abuse a subresource via navigation:
+content-security-policy = sandbox;
+cross-origin-opener-policy = same-origin
+x-frame-options = deny
