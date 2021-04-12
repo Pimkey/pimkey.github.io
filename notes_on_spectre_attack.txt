@@ -44,19 +44,31 @@ https://github.com/annevk/orb
 
 To Do:
 
-Set  X-Content-Type-Options = nosniff + mime type to satisfy CORB
+Set  X-Content-Type-Options = nosniff + set NIME type to satisfy CORB - DONE
+Set X-Frame-optios = deny to prevent resources from being framed - DONE
 
-Set Content-Security-Policy = sandbox to mitigate the risk that navigation to a subresource causes script execution or opens an origin up to attack in some other way, servers can assert the following set of headers which collectively make it difficult to meaningfully abuse a subresource via navigation
+Set Content-Security-Policy = sandbox.
+The Content-Security-Policy header allows you to restrict how resources such as JavaScript, CSS, or pretty much anything that the browser loads. It applies restrictions to a page's actions including preventing popups, preventing the execution of plugins and scripts, and enforcing a same-origin policy. Using sandbox ensures that subresources  remain inactive if navigated to directly as a top-level document. No scripts will execute, and the resource will be pushed into an opaque origin.
+Recommendation: Add it to the customizaable csp configuration though I assume that it will be disabled though by most of the people as it narrows down actions that can be performed on the site.
 
-Set Cross-Origin-Opener-Policy  = same-origin to prevent  cross-origin documents from retaining a handle to the resource’s window if it’s opened in a popup (read more about various cases)
+Set Cross-Origin-Opener-Policy  = same-origin to prevent cross-origin documents opened in a popup from retaining a handle to the resource’s window.
+Ensures a top-level document does not share a browsing context group with cross-origin documents. COOP will process-isolate the document and potential attackers can't access to the global object if they were opening it in a popup, preventing a set of cross-origin attacks. it’s important to highlight the importance of this defense mechanism as it is the only way to prevent attackers from exploiting XS-Leaks which make use of window references returned by APIs like window.open It can be hard to acheve as we allow cross-origin so there can be pages that rely upon cross-origin windows.
+Recommendation: We can set the header to same-origin-allow-popups. It will break cross-origin opener relationships initiated by a cross-origin document’s use of window.open(), but will allow the asserting document to open cross-origin windows that retain an opener relationship. In other words: allows our website to use window.open, but does not allow other websites to use window.open against our application.
 
-Set X-Frame-optios = deny to prevent resources from being framed.
+Use Fetch Metadata Headers and create resource isolation policy
+It prevents cross-origin attacks like cross-site request forgery (CSRF), cross-site script inclusion (XSSI), timing attacks, cross-origin information leaks or speculative execution side-channel (Spectre) attacks. By providing information about the context of an HTTP request in a set of Sec-Fetch-* headers, they allow the responding server to apply security policies before processing the request. This lets developers decide whether to accept or reject a request based on the way it was made and the context in which it will be used, making it possible to respond to only legitimate requests made by their own application.
+The policy should be enabled for applications whose endpoints are not intended to be loaded in a cross-site context and will allow resource requests coming from your application as well as direct navigations. If the application is serving endpoints that are CORS enabled, you need to explicitly opt them out from resource isolation to ensure that cross-site requests to these endpoints are still possible.
+It is not supported by Firefox and IE.
+Recommendation: as it is mainly used in same-origin policy, we can drop it.
 
-Use Fetch Metadata Headers to preserve resource isolation
-
-Set origin header to use in CORS
 
 Set cross-origin resource policy = same-origin to align with CORP
+Application-internal resources (private API endpoints, avatar images, uploaded data, etc.) should not be available to any cross-origin requestor. These resources should be restricted to usage as a subresource in same-origin contexts by sending a Cross-Origin-Resource-Policy header with a value of same-origin:
+Cross-Origin-Resource-Policy: same-origin
+This header will prevent cross-origin attackers from loading the resource as a response to a no-cors request.
+Personalized resources intended for cross-origin use (public API endpoints, etc) should carefully consider incoming requests' properties before responding. These endpoints can only safely be enabled by requiring CORS.
+The Cross-Origin-Resource-Policy header is only processed for requests that are NOT using CORS for access control ("no-cors requests"). Sending Cross-Origin-Resource-Policy: same-origin in CORS requests is not harmful, and works to ensure that no-cors usage isn’t accidentally allowed.
+Personalized resources that are intended for cross-origin no-cors embedding, but which don’t intend to be directly legible in that context (avatar images, authenticated media, etc) should enable cross-origin embedding via Cross-Origin-Resource-Policy: cross-origin but can also use CORS.
 
 
 To mitigate the risk that navigation to a subresource causes script execution or opens an origin up to attack in some other way, servers can assert the following set of headers which collectively make it difficult to meaningfully abuse a subresource via navigation:
